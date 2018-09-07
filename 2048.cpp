@@ -8,11 +8,30 @@ using namespace std;
 // Se almacenan solo los exponentes de los valores de cada celda,
 // Se ocupa un entero de 64 bits para el estado, donde 16 bits consecutivos
 // corresponden a una fila
+static int move_table[1 << 16];
+static int score_table[1 << 16];
+
 class Puzzle2048 {
 private:
+public:
 	uint64_t state;
 	long score;
-	int greatest = 1;
+
+	static bool merge(int row, int& source, int& destiny) {
+		if (destiny == 0) {
+			destiny = source;
+			source = 0;
+			return false;
+		}
+		else if (source == destiny) {
+			destiny += 1;
+			source = 0;
+			score_table[row] += (1 << destiny);
+			return true;
+		}
+		return false;
+	}
+
 	// retorna un 1 (probabilidad 0.9) o un 2 (con probabilidad 0.1)
 	int random_value() {
 		int random = rand() % 10;
@@ -36,7 +55,6 @@ private:
 		set(cell.first, cell.second, random_value());
 	}
 
-public:
 	Puzzle2048 () {
 		this->state = 0L;
 		this->score = 0L;
@@ -67,6 +85,23 @@ public:
 		this->state |= value << offset; // coloco el nuevo valor
 	}
 
+	static void precompute_tables() {
+		for (int row = 0; row < (1 << 16); row++) {
+			int b0 = (row >> 0) & 0xF;
+			int b1 = (row >> 4) & 0xF;
+			int b2 = (row >> 8) & 0xF;
+			int b3 = (row >> 12) & 0xF;
+			bool merge0, merge1, merge2;
+			merge0 = merge1 = merge2 = false;
+			merge0 = Puzzle2048::merge(row, b1, b0);
+			merge1 = Puzzle2048::merge(row, b2, b1);
+			merge2 = Puzzle2048::merge(row, b3, b2);
+			merge0 = merge0 or merge1 ? true : Puzzle2048::merge(row, b1, b0);
+			merge1 = merge1 or merge2 ? true : Puzzle2048::merge(row, b2, b1);
+			merge0 = merge0 or merge1 ? true : Puzzle2048::merge(row, b1, b0);
+			move_table[row] = ((b3 & 0xF) << 12) | ((b2 & 0xF) << 8) | ((b1 & 0xF) << 4) | ((b0 & 0xF) << 0);
+		}
+	}
 	void print() {
 		// printf("%016lx\n", state);
 		uint64_t curr_state = this->state;
@@ -295,13 +330,14 @@ int main(int argc, char const *argv[]) {
 	srand(time(0L));
 	Puzzle2048 p;
 	// simulate(p, 1000);
+	Puzzle2048::precompute_tables();
 	p.print();
-	for (int i = 0; p.can_move(); i++) {
-		pure_mcts(p, 1000);
-		cout << "current score: " << p.get_score() << endl;
-		p.print();
-	}
-	cout << "GAME OVER!" << endl;
+	// for (int i = 0; p.can_move(); i++) {
+	// 	pure_mcts(p, 1000);
+	// 	cout << "current score: " << p.get_score() << endl;
+	// 	p.print();
+	// }
+	// cout << "GAME OVER!" << endl;
 
 	return 0;
 }
