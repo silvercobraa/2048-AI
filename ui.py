@@ -1,30 +1,14 @@
 #!/usr/bin/python
-from PyQt4 import QtCore,QtGui
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
+from PyQt5 import QtCore,QtGui
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import QWidget, QApplication
 import random
 from puzzle2048 import Puzzle2048, simulate, pure_mcts
 
-class Worker(QThread):
-	def __init__(self, parent = None, game=None):
-		QThread.__init__(self, parent)
-		# self.exiting = False
-		# self.size = QSize(0, 0)
-		# self.stars = 0
-		self.game = game
-
-	def run(self):
-		# Note: This is never called directly. It is called by Qt once the
-		# thread environment has been set up.
-		while self.game.puzzle.can_move():
-			print('asdadsad')
-			move = pure_mcts(self.game.puzzle, 1)
-			print(self.game.puzzle)
-			self.game.update()
-
-class Game2048(QtGui.QWidget):
+class Game2048(QWidget):
 	def __init__(self,parent,width=340,gridSize=4):
-		QtGui.QWidget.__init__(self,parent)
+		QWidget.__init__(self,parent)
 		self.gameRunning=False
 		self.panelHeight=80
 		self.backgroundBrush=QtGui.QBrush(QtGui.QColor(0xbbada0))
@@ -58,7 +42,6 @@ class Game2048(QtGui.QWidget):
 		self.lastPoint=None
 		self.resize(QtCore.QSize(width,width+self.panelHeight))
 		self.reset_game()
-		self.thread = Worker(game=self)
 		self.iterations = 0
 		# while self.puzzle.can_move():
 		# 	move = pure_mcts(self.puzzle, 10)
@@ -178,7 +161,7 @@ class Game2048(QtGui.QWidget):
 
 
 if __name__=='__main__':
-	app=QtGui.QApplication([])
+	app = QApplication([])
 	g = Game2048(None,340,4)
 	g.move(0,0)
 	#g.resize(500,400)
