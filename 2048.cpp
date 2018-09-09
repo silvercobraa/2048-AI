@@ -2,6 +2,8 @@
 #include <vector>
 #include <cassert>
 #include <iomanip>
+#include <string>
+#include <unordered_map>
 
 #define INF 99999999
 
@@ -10,6 +12,8 @@ using namespace std;
 // Se almacenan solo los exponentes de los valores de cada celda,
 // Se ocupa un entero de 64 bits para el estado, donde 16 bits consecutivos
 // corresponden a una fila
+
+typedef uint64_t (*Move)(uint64_t);
 
 static int l_lookup[1 << 16];
 static int r_lookup[1 << 16];
@@ -52,8 +56,8 @@ private:
 
 public:
 	long score;
-	// typedef uint64_t (Game2048::*MoveFunction)();
-	// static MoveFunction moves[4] = {Game2048::up, Game2048::left, Game2048::down, Game2048::right};
+	static Move moves[4];
+	// static Move moves[4] = {, &Game2048::left, &Game2048::down, &Game2048::right};
 
 	static uint64_t place_random_tile(uint64_t state) {
 		vector<pair<int, int>> empty_cells;
@@ -83,16 +87,66 @@ public:
 		int i = 1;
 		for (uint64_t st = state; st != 0; st >>= 4) {
 			int exp = st & 0xF;
-			ret += exp >= 3 ? (1 << exp) : 0;
+			// con esta funcion de evaluacion llego hasta 4096
+			// ret += exp >= 3 ? (1 << exp) : 0;
 			// ret += exp >= 4 ? exp*(1 << exp) : 0;
 			// ret += exp >= 2 ? (1 << exp)*(1 << exp) : 0;
 			// ret += 1 << (exp + i);
+			ret += exp == 0 ? 100000 : 0;
 			i++;
 		}
-		return ret;
+		// for (int i = 0; i < 4; i++) {
+		// 	bool test1 = true;
+		// 	bool test2 = true;
+		// 	for (int j = 0; j < 3; j++) {
+		// 		int diff1 = Game2048::get(state, i, j + 1) - Game2048::get(state, i, j);
+		// 		int diff2 = Game2048::get(state, i, j) - Game2048::get(state, i, j + 1);
+		// 		test1 &= diff1 == 1 or diff1 == 0;
+		// 		test2 &= diff2 == 1 or diff2 == 0;
+		// 		if (!test1 and !test2) {
+		// 			break;
+		// 		}
+		// 	}
+		// 	if (test1 or test2) {
+		// 		ret += 1000;
+		// 	}
+		// }
+		// for (int j = 0; j < 4; j++) {
+		// 	bool test1 = true;
+		// 	bool test2 = true;
+		// 	for (int i = 0; i < 3; i++) {
+		// 		int diff1 = Game2048::get(state, i + 1, j) - Game2048::get(state, i, j);
+		// 		int diff2 = Game2048::get(state, i, j) - Game2048::get(state, i + 1, j);
+		// 		test1 &= diff1 == 1 or diff1 == 0;
+		// 		test2 &= diff2 == 1 or diff2 == 0;
+		// 		if (!test1 and !test2) {
+		// 			break;
+		// 		}
+		// 	}
+		// 	if (test1 or test2) {
+		// 		ret += 1000;
+		// 	}
+		// }
+		// ret += 100*(1 << ((state >> 0) & 0xF));
+		// ret += 100*(1 << ((state >> 12) & 0xF));
+		// ret += 100*(1 << ((state >> 48) & 0xF));
+		// ret += 100*(1 << ((state >> 60) & 0xF));
+		static int h1[] = {15, 14, 13, 12, 8, 9, 10, 11, 7, 6, 5, 4, 0, 1, 2, 3};
+		static int h2[] = {15, 8, 7, 0, 14, 9, 6, 1, 13, 10, 5, 2, 12, 11, 4, 3};
+		long ret1 = 0;
+		long ret2 = 0;
+		for (int i = 0; i < 16; i++) {
+			int val = (state >> (4*i)) & 0xF;
+			ret1 += val*(1 << h1[i]);
+			ret2 += val*(1 << h2[i]);
+		}
+		return max(ret1, ret2) + ret / 1000;
+		return max(ret1, ret2);
+		// return rett;
+		return ret1 + ret;
+		// return ret;
 		// return this->score;
 	}
-
 	static uint64_t get(uint64_t state, int i, int j) {
 		// assert(0 <= i and i < 4 and 0 <= j and j < 4);
 		int offset = 16*i + 4*j;
@@ -227,6 +281,8 @@ public:
 	}
 };
 
+// uint64_t (Game2048::*Game2048::moves[])(uint64_t) = {Game2048::up};
+Move Game2048::moves[] = {&Game2048::up, &Game2048::left, &Game2048::down, &Game2048::right};
 
 long simulate(uint64_t state, int iterations) {
 	// descomentar para limitar la profundidad
@@ -238,78 +294,157 @@ long simulate(uint64_t state, int iterations) {
 	return Game2048::get_score(state);
 }
 
+static string move_name[] = {"UP", "LEFT", "DOWN", "RIGHT"};
+
 uint64_t pure_mcts(uint64_t state, int simulations, int iterations) {
-	uint64_t u = state;
-	uint64_t l = state;
-	uint64_t d = state;
-	uint64_t r = state;
-	u = Game2048::up(state);
-	l = Game2048::left(state);
-	d = Game2048::down(state);
-	r = Game2048::right(state);
-	long ansu = 0;
-	long ansl = 0;
-	long ansd = 0;
-	long ansr = 0;
-	for (int i = 0; i < simulations; i++) {
-		if (u != state) {
-			u = Game2048::place_random_tile(u);
-			ansu += simulate(u, iterations);
+	double best_avg_score = -1.0;
+	int best_move = -1;
+	uint64_t best_state = 0;
+	for (int i = 0; i < 4; i++) {
+		auto move = Game2048::moves[i];
+		uint64_t new_state = move(state);
+		long total_score = 0;
+		if (new_state != state) {
+			for (int j = 0; j < simulations; j++) {
+				uint64_t aux_state = Game2048::place_random_tile(new_state);
+				total_score += simulate(aux_state, iterations);
+			}
 		}
-		if (l != state) {
-			l = Game2048::place_random_tile(l);
-			ansl += simulate(l, iterations);
-		}
-		if (d != state) {
-			d = Game2048::place_random_tile(d);
-			ansd += simulate(d, iterations);
-		}
-		if (r != state) {
-			r = Game2048::place_random_tile(r);
-			ansr += simulate(r, iterations);
+		double avg_score = double(total_score) / simulations;
+		// cout << move_name[i] << ": " << avg_score << endl;
+		if (avg_score > best_avg_score) {
+			best_avg_score = avg_score;
+			best_move = i;
+			best_state = new_state;
 		}
 	}
-	cout << "u: " << ansu << endl;
-	cout << "l: " << ansl << endl;
-	cout << "d: " << ansd << endl;
-	cout << "r: " << ansr << endl;
-	long max = std::max(std::max(ansu, ansl), std::max(ansd, ansr));
-	cout << "best score: " << max << endl;
-	if (max == ansu) {
-		cout << "UP" << endl;
-		state = Game2048::up(state);
-	}
-	else if (max == ansl) {
-		cout << "LEFT" << endl;
-		state = Game2048::left(state);
-	}
-	else if (max == ansd) {
-		cout << "DOWN" << endl;
-		state = Game2048::down(state);
-	}
-	else if (max == ansr) {
-		cout << "RIGHT" << endl;
-		state = Game2048::right(state);
-	}
-	return Game2048::place_random_tile(state);
+	// cout << move_name[best_move] << ": " << best_avg_score << endl;
+	uint64_t ret = Game2048::place_random_tile(best_state);
+	return ret;
 }
 
+// unordered_map<uint64_t, long> score_cache;
+double choice(uint64_t state, int depth);
+
+double chance(uint64_t state, int depth) {
+	// if (score_cache.find(state) != score_cache.end()) {
+	// 	// cout << "Resultado en cache" << endl;
+	// 	return score_cache[state];
+	// }
+	double expected_score = 0.0;
+	int total_weight = 0;
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			if (Game2048::get(state, i, j) == 0) {
+				total_weight += 1; // 0.9 + 0.1
+				// cout << "depth: " << depth << ", probando 2 en posicion " << i << " " << j << endl;
+				 // no olividar que lo guardo como exponente
+				uint64_t state2 = Game2048::set(state, i, j, 1);
+				// cout << "depth: " << depth << ", probando 4 en posicion " << i << " " << j << endl;
+				uint64_t state4 = Game2048::set(state, i, j, 2);
+				double score2 = choice(state2, depth - 1);
+				double score4 = choice(state4, depth - 1);
+				expected_score += 0.9 * score2;
+				expected_score += 0.1 * score4;
+			}
+		}
+	}
+	return total_weight == 0 ? 0 : expected_score / total_weight;
+}
+
+
+double choice(uint64_t state, int depth) {
+	// if (score_cache.find(state) != score_cache.end()) {
+	// 	// cout << "Resultado en cache" << endl;
+	// 	return score_cache[state];
+	// }
+	if (depth <= 0) {
+		long total_score = 0;
+		// int sims = 100;
+		// for (size_t i = 0; i < sims; i++) {
+		// 	total_score += simulate(state, INF);
+		// 	return Game2048::get_score(state) / double(sims);
+		// }
+		double score = Game2048::get_score(state);
+		// score_cache[state] = score;
+		return score;
+	}
+	double best_score = -1.0;
+	for (int i = 0; i < 4; i++) {
+		// cout << "depth: " << depth << ", probando movimiento " << i << endl;
+		auto move = Game2048::moves[i];
+		uint64_t new_state = move(state);
+		double score = chance(new_state, depth);
+		if (score > best_score) {
+			best_score = score;
+		}
+	}
+	return best_score;
+}
+
+uint64_t expectimax(uint64_t state, int depth) {
+	uint64_t best_state = 0;
+	double best_score = -1.0;
+	int best_move = -1;
+	for (int i = 0; i < 4; i++) {
+		auto move = Game2048::moves[i];
+		uint64_t new_state = move(state);
+		if (new_state != state) {
+			double score = chance(new_state, depth - 1);
+			if (score > best_score) {
+				best_score = score;
+				best_move = i;
+				best_state = new_state;
+			}
+		}
+	}
+	cout << move_name[best_move] << endl;
+	return Game2048::place_random_tile(best_state);
+}
 
 int main(int argc, char const *argv[]) {
 	srand(time(0L));
 	Game2048::precompute_tables();
-
 	uint64_t state = 0L;
 	state = Game2048::place_random_tile(state);
 	state = Game2048::place_random_tile(state);
 	Game2048::print(state);
+	clock_t ti = clock();
+	int i;
+	int simulations = 1000;
 	for (int i = 0; Game2048::can_move(state); i++) {
-		cout << "simulations: " << i << endl;
-		state = pure_mcts(state, 1000, INF);
-		cout << "current score: " << Game2048::get_score(state) << endl;
+		state = expectimax(state, 5);
 		Game2048::print(state);
 	}
+	// for (i = 0; Game2048::can_move(state); i++) {
+	// 	// cout << "simulations: " << i << endl;
+	// 	state = pure_mcts(state, simulations, INF);
+	// 	// cout << "current score: " << Game2048::get_score(state) << endl;
+	// 	Game2048::print(state);
+	// }
+	clock_t tf = clock();
+	// while (true) {
+	// 	char c;
+	// 	cin >> c;
+	// 	if (c == 'w') {
+	// 		state = Game2048::up(state);
+	// 	}
+	// 	else if (c == 'a') {
+	// 		state = Game2048::left(state);
+	// 	}
+	// 	else if (c == 's') {
+	// 		state = Game2048::down(state);
+	// 	}
+	// 	else if (c == 'd') {
+	// 		state = Game2048::right(state);
+	// 	}
+	// 	Game2048::print(state);
+	// 	state = Game2048::place_random_tile(state);
+	// 	Game2048::print(state);
+	//
+	// }
 	cout << "GAME OVER!" << endl;
-
+	cout << double(tf - ti) / i << " moves per second" << endl;
+	cout << simulations*(double(tf - ti) / i) << " simulations per second" << endl;
 	return 0;
 }
