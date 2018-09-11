@@ -4,7 +4,8 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import QWidget, QApplication
 import random
-from puzzle2048 import Puzzle2048, simulate, pure_mcts
+from puzzle2048 import Puzzle2048
+from ai import AI
 
 class Game2048(QWidget):
 	def __init__(self,parent,width=340,gridSize=4):
@@ -59,40 +60,48 @@ class Game2048(QWidget):
 		self.reset_game()
 
 	def reset_game(self):
-		self.puzzle = Puzzle2048(initial_tiles=1)
-		print(self.puzzle)
-		self.score=0
+		self.puzzle = 0
+		self.puzzle = Puzzle2048.place_random_tile(self.puzzle)
+		self.puzzle = Puzzle2048.place_random_tile(self.puzzle)
+		self.score = 0
 		self.update()
 		self.gameRunning=True
 
 	def up(self):
-		self.puzzle.move_up()
-		# print(self.puzzle)
-		self.score = self.puzzle.get_score()
-		self.update()
-		# return
+		new_state = Puzzle2048.up(self.puzzle)
+		if new_state != self.puzzle:
+			self.puzzle = new_state
+			self.puzzle = Puzzle2048.place_random_tile(self.puzzle)
+			self.update()
 
 	def down(self):
-		self.puzzle.move_down()
-		self.score = self.puzzle.get_score()
-		self.update()
-		# print(self.puzzle)
-		# return
+		new_state = Puzzle2048.down(self.puzzle)
+		if new_state != self.puzzle:
+			self.puzzle = new_state
+			self.puzzle = Puzzle2048.place_random_tile(self.puzzle)
+			self.update()
 
 	def left(self):
-		self.puzzle.move_left()
-		self.score = self.puzzle.get_score()
-		self.update()
-		# print(self.puzzle)
-		# return
+		print('asdada')
+		Puzzle2048.print(self.puzzle)
+		new_state = Puzzle2048.left(self.puzzle)
+		print('asdada')
+		Puzzle2048.print(new_state)
+		if new_state != self.puzzle:
+			self.puzzle = new_state
+			self.puzzle = Puzzle2048.place_random_tile(self.puzzle)
+			self.update()
 
 	def right(self):
-		self.puzzle.move_right()
-		self.score = self.puzzle.get_score()
-		self.update()
-		# print(self.puzzle)
-		# return
+		new_state = Puzzle2048.right(self.puzzle)
+		if new_state != self.puzzle:
+			self.puzzle = new_state
+			self.puzzle = Puzzle2048.place_random_tile(self.puzzle)
+			self.update()
 
+	def auto_play(self):
+		self.puzzle = AI.expectimax(self.puzzle)
+		self.update()
 
 	def keyPressEvent(self,e):
 		if not self.gameRunning:
@@ -108,18 +117,7 @@ class Game2048(QWidget):
 		elif e.key()==QtCore.Qt.Key_Right:
 			self.right()
 		elif e.key()==QtCore.Qt.Key_Space:
-			# print('asdasdasd')
-			# self.puzzle.random_move()
-			# while self.puzzle.can_move():
-			# move = pure_mcts(self.puzzle, self.score // 100)
-			move = pure_mcts(self.puzzle, self.iterations // 10)
-			print(move)
-			self.score = self.puzzle.get_score()
-			# print('score:', self.score)
-			# 	print(self.puzzle)
-			# 	self.update()
-			self.iterations += 1
-			self.update()
+			self.auto_play()
 		print(self.puzzle)
 
 	def paintEvent(self,event):
@@ -143,7 +141,9 @@ class Game2048(QWidget):
 		painter.drawText(self.scoreLabel,str(self.score),QtGui.QTextOption(QtCore.Qt.AlignHCenter|QtCore.Qt.AlignVCenter))
 		painter.drawText(self.hiScoreLabel,str(self.hiScore),QtGui.QTextOption(QtCore.Qt.AlignHCenter|QtCore.Qt.AlignVCenter))
 		painter.setFont(self.font)
-		for i, row in enumerate(self.puzzle.get_state()):
+		matrix = Puzzle2048.get_matrix(self.puzzle)
+		print(matrix)
+		for i, row in enumerate(matrix):
 			for j, col in enumerate(row):
 				if col == 0:
 					painter.setBrush(self.brushes[0])
@@ -161,6 +161,7 @@ class Game2048(QWidget):
 
 
 if __name__=='__main__':
+	Puzzle2048.precompute_tables()
 	app = QApplication([])
 	g = Game2048(None,340,4)
 	g.move(0,0)
