@@ -1,10 +1,42 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+# Esta clase implementa todas las mecánicas del juego.
+# Por razones de eficiencia, todos los métodos son estáticos, para evitar el overhead
+# extra de crear instancias cada vez. Éstos métodos pueden pensarse como que son
+# simplemente funciones, pero bajo el scope de una clase.
+# Todas las funciones son puras, es decir que no alteran el estado de los parámetros
+# pasados, y siempre retornan el mismo output para un mismo input.
+# El estado del puzzle se representa con 64 bits: 4 bits por cada una de las celdas
+# del puzzle. Cada uno de estos 4 bits puede guardar un valor entre 0 y 15, el
+# cual representa el exponente de la potencia de 2 del valor en su celda correspondiente.
+# Por ejemplo, para representar un 32 se guardará un 5. Se ve entonces que esta
+# implementación aguantará un máximo de 2^15 = 32768 por celda antes de hacer overflow.
+# El orden de los grupos de 4 bits está en row major order, es decir los primeros
+# 4 bits menos significatvos son la celda (0, 0), los 16 bits menos significativos
+# corresponden a la fila 0, los 4 bits más significativos corresponden a la celda (3, 3).
+# Por eficiencia, los movimientos se ejecutan consultando lookup tables. Si bien no
+# podemos precomputar los 4 movimientos de cada uno de los 2^64 estados posibles, sí
+# podemos hacerlo por fila.
+# Se tienen 2 tablas, una para los movimientos left y otra para los movimientos right,
+# esta última calculada simplemente revirtiendo el orden de los grupos de 4 bits de cada fila,
+# consultando la tabla para left y finalmente revirtiendo el resultado.
+# La accion left se calcula consultando la lookup table left para cada fila del puzzle.
+# La accion right se calcula consultando la lookup table left para cada fila del puzzle.
+# La accion up se calcula transponiendo la matriz del puzzle, consultando la lookup table
+# left para cada fila y finalmente transponiendo el resultado.
+# La accion down se calcula transponiendo la matriz del puzzle, consultando la lookup table
+# right para cada fila y finalmente transponiendo el resultado.
 import random
 
 class Puzzle2048(object):
     """Clase que representa el estado del Puzzle 2048."""
+    # maximo hay 2^16 posibilidades por cada fila
+    __move_right_lookup = [0 for i in range(1 << 16)]
+    __move_left_lookup = [0 for i in range(1 << 16)]
+
+    # moves = [up, Puzzle2048.left, Puzzle2048.down, Puzzle2048.right]
+
     def __init__(self, state=[[0 for j in range(4)] for i in range(4)], initial_tiles=0):
         super(Puzzle2048, self).__init__()
         self.__state = state
@@ -16,226 +48,177 @@ class Puzzle2048(object):
     def __random_value():
         """Retorna un 2 con probabilidad 0.9 o un 4 con probabilidad 0.1"""
         r = random.randint(0, 9) % 10
-        if r == 0:
-            return 4
-        else:
-            return 2
+        return 2 if r == 0 else 1
 
-    def __place_random_tile(self):
-        """Coloca un __random_value en una celda disponible."""
-        available_cells = []
-        for i, row in enumerate(self.__state):
-            for j, k in enumerate(row):
-                if k == 0:
-                    available_cells.append((i, j))
-        r = random.choice(available_cells)
-        self.__state[r[0]][r[1]] = Puzzle2048.__random_value()
-
-    def __merge(self, i1, j1, i2, j2):
-        """Mueve la celda[i2][j2] a la celda adjacente [i1][i2], si es posible, \
-        combinando ambas si es necesario. Este método solo debiera ser llamado\
-        por las funciones 'move'. Retorna true si hubo un merge, falso si solo
-        se desplazó una celda o si no se pudo hacer nada."""
-        v1 = self.__state[i1][j1]
-        v2 = self.__state[i2][j2]
-        # si la celda destino está vacía, simplemente movemos la otra celda
-        if v1 == 0:
-            self.__state[i1][j1] = v2
-            self.__state[i2][j2] = 0
-            return False
-        # si ambas tienen el mismo valor, las combinamos
-        elif v1 == v2:
-            self.__state[i1][j1] = v1 + v2
-            self.__state[i2][j2] = 0
-            self.__score += v1 + v2
-            return True
-        # si no se pudo mover retornamos falso
-        return False
-
-    # Public
-    def get_score(self):
-        return self.__score
-
-    def get_state(self):
-        """Retorna una copia del estado actual."""
-        return [row.copy() for row in self.__state]
-
-    def __repr__(self):
-        ret = ''
-        for row in self.__state:
-            for x in row:
-                ret += str(x) + ' '
-            ret += '\n'
+    def __reverse(word):
+        """Revierte el orden de los BYTES de word. Util para calcular las lookup tables para los movimientos left a partir de los right."""
+        b0 = (word >> 0) & 0xF
+        b1 = (word >> 4) & 0xF
+        b2 = (word >> 8) & 0xF
+        b3 = (word >> 12) & 0xF
+        ret = (b0 << 12) | (b1 << 8) | (b2 << 4) | (b3 << 0)
         return ret
 
-    def move_left(self):
-        """Ejecuta un movimiento hacia la izquierda. Retorna Falso si no es posible realizarlo."""
-        prev_state = self.get_state()
-        merge = []
-        for i, row in enumerate(self.__state):
-            merge = [False, False, False]
-            merge[0] = self.__merge(i, 0, i, 1)
-            merge[1] = self.__merge(i, 1, i, 2)
-            merge[2] = self.__merge(i, 2, i, 3)
-            merge[0] = True if merge[0] or merge[1] else self.__merge(i, 0, i, 1)
-            merge[1] = True if merge[1] or merge[2] else self.__merge(i, 1, i, 2)
-            merge[0] = True if merge[0] or merge[1] else self.__merge(i, 0, i, 1)
+    def __transpose(state):
+        new_state = 0
+        for i in range(4):
+            for j in range(4):
+                new_state |= ((state >> 16*i + 4*j) & 0xF) << (16*j + 4*i)
+        return new_state
 
-        # print(self)
-        if prev_state != self.__state:
-            self.__place_random_tile()
-            # print(self)
-            return True
+    def __merge(row, source, destiny):
+        """Combina 2 celdas consecutivas. Retorna una tripleta con un booleano, el nuevo valor source y el nuevo valor destiny. \
+        El booleano indica si es que se combinaron los valores source y destiny, es decir eran iguales. \
+        Esto es util para no hacer más de 1 merge donde no corresponda."""
+        if destiny == 0:
+            return False, 0, source
+        elif source == destiny:
+            return True, 0, destiny + 1
+        return False, source, destiny
 
-        return False
+    def precompute_tables():
+        """Esto es dificil de explicar..."""
+        for row in range(1 << 16):
+            b0 = (row >> 0) & 0xF
+            b1 = (row >> 4) & 0xF
+            b2 = (row >> 8) & 0xF
+            b3 = (row >> 12) & 0xF
+            merge0 = False
+            merge1 = False
+            merge2 = False
+            merge0, b1, b0 = Puzzle2048.__merge(row, b1, b0)
+            merge1, b2, b1 = Puzzle2048.__merge(row, b2, b1)
+            merge2, b3, b2 = Puzzle2048.__merge(row, b3, b2)
+            merge0, b1, b0 = (True, b1, b0) if merge0 or merge1 else Puzzle2048.__merge(row, b1, b0)
+            merge1, b2, b1 = (True, b2, b1) if merge1 or merge2 else Puzzle2048.__merge(row, b2, b1)
+            merge0, b1, b0 = (True, b1, b0) if merge0 or merge1 else Puzzle2048.__merge(row, b1, b0)
+            new_row = ((b3 & 0xF) << 12) | ((b2 & 0xF) << 8) | ((b1 & 0xF) << 4) | ((b0 & 0xF) << 0)
+            Puzzle2048.__move_left_lookup[row] = new_row
+            Puzzle2048.__move_right_lookup[Puzzle2048.__reverse(row)] = Puzzle2048.__reverse(new_row)
 
-    def move_right(self):
-        prev_state = self.get_state()
-        merge = []
-        for i, row in enumerate(self.__state):
-            merge = [False, False, False]
-            merge[0] = self.__merge(i, 3, i, 2)
-            merge[1] = self.__merge(i, 2, i, 1)
-            merge[2] = self.__merge(i, 1, i, 0)
-            merge[0] = True if merge[0] or merge[1] else self.__merge(i, 3, i, 2)
-            merge[1] = True if merge[1] or merge[2] else self.__merge(i, 2, i, 1)
-            merge[0] = True if merge[0] or merge[1] else self.__merge(i, 3, i, 2)
+    def place_random_tile(state):
+        """Coloca un __random_value en una celda disponible."""
+        available_cells = []
+        for i in range(4):
+            for j in range(4):
+                cell = (state >> (16*i + 4*j)) & 0xF
+                if cell == 0:
+                    available_cells.append((i, j))
+        r = random.choice(available_cells)
+        offset = 16*r[0] + 4*r[1]
+        state ^= ((state >> offset) & 0xF) << offset
+        state |= Puzzle2048.__random_value() << offset
+        return state
 
-        # print(self)
-        if prev_state != self.__state:
-            self.__place_random_tile()
-            # print(self)
-            return True
+    # Public
+    def get_score(state):
+        if not Puzzle2048.can_move(state):
+            return 99999999
+        h1 = [0, 4, 8, 12, 13, 9, 5, 1, 2, 6, 10, 14, 15, 11, 7, 3]
+        h2 = [0, 1, 2, 3, 7, 6, 5, 4, 8, 9, 10, 11, 15, 14, 13, 12]
+        ret1 = 0
+        ret2 = 0
+        ret0 = 0
+        for i in range(16):
+            val = (state >> (4*i)) & 0xF
+            if val == 0:
+                ret0 += 100
+            else:
+                # ret1 += (1 << val)*(1 << h1[i])
+                # ret2 += (1 << val)*(1 << h2[i])
+                ret1 += (1 << val) * 4**h1[i]
+                ret2 += (1 << val) * 4**h2[i]
+        return ret0 + ret1 + ret2
 
-        return False
+    def get_matrix(state):
+        """Retorna la matriz que representa el estado."""
+        m = [[0 for j in range(4)] for i in range(4)]
+        for i in range(4):
+            for j in range(4):
+                offset = 16*i + 4*j
+                exponent = (state >> offset) & 0xF
+                if exponent != 0:
+                    m[i][j] = 2**exponent
+        return m
 
-    def move_up(self):
-        prev_state = self.get_state()
-        merge = []
-        for j in range(4):
-            merge = [False, False, False]
-            merge[0] = self.__merge(0, j, 1, j)
-            merge[1] = self.__merge(1, j, 2, j)
-            merge[2] = self.__merge(2, j, 3, j)
-            merge[0] = True if merge[0] or merge[1] else self.__merge(0, j, 1, j)
-            merge[1] = True if merge[1] or merge[2] else self.__merge(1, j, 2, j)
-            merge[0] = True if merge[0] or merge[1] else self.__merge(0, j, 1, j)
+    def print(state):
+        for i in range(4):
+            for j in range(4):
+                cell = (state >> (16*i + 4*j)) & 0xF
+                if cell == 0:
+                    print('%5d' % 0, end='')
+                else:
+                    print('%5d' % (1 << cell), end='')
+            print('')
+        print('')
 
-        # print(self)
-        if prev_state != self.__state:
-            self.__place_random_tile()
-            # print(self)
-            return True
+    def left(state):
+        new_state = 0
+        # por cada fila consulto la lookup table. Cada fila son 16 bits consecutivos.
+        # desplazo 16 bits por la cantidad de filas, y aplico una mascara para descartar los bits que no importan
+        # consulto la tabla con la fila obtenida
+        # agrego el resultado en la su fila correspondiente en el nuevo estado
+        for i in range(4):
+            row = (state >> (16*i)) & 0xFFFF
+            r = Puzzle2048.__move_left_lookup[row]
+            new_state |= r << (16*i)
+        return new_state
 
-        return False
+    def right(state):
+        # lo mismo que left, pero con la otra tabla
+        new_state = 0
+        for i in range(4):
+            row = (state >> (16*i)) & 0xFFFF
+            r = Puzzle2048.__move_right_lookup[row]
+            new_state |= r << (16*i)
+        return new_state
 
-    def move_down(self):
-        prev_state = self.get_state()
-        merge = []
-        for j in range(4):
-            merge = [False, False, False]
-            merge[0] = self.__merge(3, j, 2, j)
-            merge[1] = self.__merge(2, j, 1, j)
-            merge[2] = self.__merge(1, j, 0, j)
-            merge[0] = True if merge[0] or merge[1] else self.__merge(3, j, 2, j)
-            merge[1] = True if merge[1] or merge[2] else self.__merge(2, j, 1, j)
-            merge[0] = True if merge[0] or merge[1] else self.__merge(3, j, 2, j)
+    def up(state):
+        # igual que left, pero hay que transponer antes y después
+        tr = Puzzle2048.__transpose(state)
+        new_state = 0
+        for i in range(4):
+            row = (tr >> (16*i)) & 0xFFFF
+            r = Puzzle2048.__move_left_lookup[row]
+            new_state |= r << (16*i)
+        return Puzzle2048.__transpose(new_state)
 
-        # print(self)
-        if prev_state != self.__state:
-            self.__place_random_tile()
-            # print(self)
-            return True
+    def down(state):
+        # igual que right, pero hay que transponer antes y después
+        tr = Puzzle2048.__transpose(state)
+        new_state = 0
+        for i in range(4):
+            row = (tr >> (16*i)) & 0xFFFF
+            r = Puzzle2048.__move_right_lookup[row]
+            new_state |= r << (16*i)
+        return Puzzle2048.__transpose(new_state)
 
-        return False
+    def can_move(state):
+        return any((state != move(state) for move in Puzzle2048.moves))
 
-    def random_move(self):
-        """Ejecuta al azar uno de los 4 movimientos posibles y lo ejecuta."""
-        moves = [self.move_up, self.move_left, self.move_down, self.move_right]
-        move = random.choice(moves)
-        # print(move.__name__)
-        return move()
-
-    def available_moves(self):
-        # creo las 4 ramas posibles con una copia del estado actual
-        u = Puzzle2048(state=self.get_state())
-        l = Puzzle2048(state=self.get_state())
-        d = Puzzle2048(state=self.get_state())
-        r = Puzzle2048(state=self.get_state())
-        moves = []
-        u.move_up()
-        if self.__state != u.get_state():
-            moves.append(self.move_up)
-        l.move_left()
-        if self.__state != l.get_state():
-            moves.append(self.move_left)
-        d.move_down()
-        if self.__state != d.get_state():
-            moves.append(self.move_down)
-        r.move_right()
-        if self.__state != r.get_state():
-            moves.append(self.move_right)
-        return moves
-
-def simulate(puzzle):
-    simulation_puzzle = Puzzle2048(state=puzzle.get_state())
-    it = 0
-    moves = simulation_puzzle.available_moves()
-    while moves != []:
-        # if it > 10000:
-            # return simulation_puzzle.random_move()
-        # print(moves)
-        move = random.choice(moves)
-        move()
-        it += 1
-        moves = simulation_puzzle.available_moves()
-    return simulation_puzzle.get_score()
-
-def pure_mcts(puzzle, iterations):
-    u = Puzzle2048(state=puzzle.get_state())
-    l = Puzzle2048(state=puzzle.get_state())
-    d = Puzzle2048(state=puzzle.get_state())
-    r = Puzzle2048(state=puzzle.get_state())
-    u.move_up()
-    l.move_left()
-    d.move_down()
-    r.move_right()
-    puzzles = [u, l, d, r]
-    # print(puzzles)
-    scores = [0, 0, 0, 0]
-    for i in range(iterations):
-        for j, puzz in enumerate(puzzles):
-            scores[j] += simulate(puzz)
-            # print(scores[j])
-
-    max_score = max(scores)
-    # print(scores, max_score)
-    # aunque improbable, puede haber mas de una simulacion con el mismo puntaje
-    # en ese caso, decidimos al azar entre ellas
-    moves = [i for i, score in enumerate(scores) if score == max_score]
-    move = random.choice(moves)
-    if move == 0:
-        puzzle.move_up()
-        return 'UP'
-    elif move == 1:
-        puzzle.move_left()
-        return 'LEFT'
-    elif move == 2:
-        puzzle.move_down()
-        return 'DOWN'
-    elif move == 3:
-        puzzle.move_right()
-        return 'RIGHT'
-
+    moves = [up, left, down, right]
 
 
 def main():
-    p = Puzzle2048(initial_tiles=2)
-    it = 1
-    while p.available_moves():
-        print('pure_mcts:', pure_mcts(p, it))
-        print(p)
-        it += 1
+    Puzzle2048.precompute_tables()
+    state = 0
+    state = Puzzle2048.place_random_tile(state)
+    state = Puzzle2048.place_random_tile(state)
+    Puzzle2048.print(state)
+    print(Puzzle2048.get_matrix(state))
+    while True:
+        move = input()
+        if move == 'w':
+            state = Puzzle2048.up(state)
+        elif move == 'a':
+            state = Puzzle2048.left(state)
+        elif move == 's':
+            state = Puzzle2048.down(state)
+        elif move == 'd':
+            state = Puzzle2048.right(state)
+        Puzzle2048.print(state)
+        state = Puzzle2048.place_random_tile(state)
+        Puzzle2048.print(state)
 
 if __name__ == '__main__':
     main()
