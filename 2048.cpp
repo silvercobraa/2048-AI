@@ -7,7 +7,7 @@
 
 #define INF 99999999
 #define MCTS_SIMULATIONS 1000
-#define EXPECTIMAX_DEPTH 7
+#define EXPECTIMAX_DEPTH 6
 
 using namespace std;
 
@@ -103,6 +103,9 @@ public:
 		// this->state = place_random_tile(this->state);
 	}
 	static long get_score(uint64_t state) {
+		if (!Game2048::can_move(state)) {
+			return -INF;
+		}
 		long ret = 0;
 		int i = 1;
 		for (uint64_t st = state; st != 0; st >>= 4) {
@@ -151,20 +154,27 @@ public:
 		// ret += 100*(1 << ((state >> 12) & 0xF));
 		// ret += 100*(1 << ((state >> 48) & 0xF));
 		// ret += 100*(1 << ((state >> 60) & 0xF));
-		if (ret == 0) {
-			return -INF;
-		}
-		static int h1[] = {15, 14, 13, 12, 8, 9, 10, 11, 7, 6, 5, 4, 0, 1, 2, 3};
-		static int h2[] = {15, 8, 7, 0, 14, 9, 6, 1, 13, 10, 5, 2, 12, 11, 4, 3};
+		// if (ret == 0) {
+		// 	return -INF;
+		// }
+		static int h1[] = {0, 4, 8, 12, 13, 9, 5, 1, 2, 6, 10, 14, 15, 11, 7, 3};
+		static int h2[] = {0, 1, 2, 3, 7, 6, 5, 4, 8, 9, 10, 11, 15, 14, 13, 12};
+		static int h3[] = {0, 4, 8, 12, 13, 14, 15, 11, 10, 9, 5, 6, 7, 3, 2, 1};
+		static int h4[] = {0, 1, 2, 3, 7, 11, 15, 14, 10, 6, 5, 9, 13, 12, 8, 4};
 		long ret1 = 0;
 		long ret2 = 0;
+		// long ret3 = 0;
+		// long ret4 = 0;
 		for (int i = 0; i < 16; i++) {
 			int val = (state >> (4*i)) & 0xF;
-			ret1 += (1 << val)*(1 << h1[i]);
-			ret2 += (1 << val)*(1 << h2[i]);
+			ret1 += (1LL << val)*(1LL << h1[i]);
+			ret2 += (1LL << val)*(1LL << h2[i]);
+			// ret3 += (1LL << val)*(1LL << h3[i]);
+			// ret4 += (1LL << val)*(1LL << h4[i]);
 		}
+		// return max(max(ret1, ret2), max(ret3, ret4)) + ret / 1000;
+		// return max(ret1, ret2);
 		return max(ret1, ret2) + ret / 1000;
-		return max(ret1, ret2);
 		// return rett;
 		return ret1 + ret;
 		// return ret;
@@ -333,7 +343,7 @@ uint64_t pure_mcts(uint64_t state, int simulations, int iterations) {
 		}
 		double avg_score = double(total_score) / simulations;
 		// cout << move_name[i] << ": " << avg_score << endl;
-		if (avg_score > best_avg_score) {
+		if (avg_score >= best_avg_score) {
 			best_avg_score = avg_score;
 			best_move = i;
 			best_state = new_state;
@@ -344,9 +354,10 @@ uint64_t pure_mcts(uint64_t state, int simulations, int iterations) {
 	return ret;
 }
 
-double choice(uint64_t state, int depth);
+double choice(uint64_t state, int depth, int fours);
 
-double chance(uint64_t state, int depth) {
+double chance(uint64_t state, int depth, int fours) {
+	// if (depth == 0 or fours > 1) {
 	if (depth == 0) {
 		return Game2048::get_score(state);
 	}
@@ -361,10 +372,11 @@ double chance(uint64_t state, int depth) {
 				uint64_t state2 = Game2048::set(state, i, j, 1);
 				// cout << "depth: " << depth << ", probando 4 en posicion " << i << " " << j << endl;
 				uint64_t state4 = Game2048::set(state, i, j, 2);
-				double score2 = choice(state2, depth - 1);
-				double score4 = choice(state4, depth - 1);
+				double score2 = choice(state2, depth - 1, fours);
+				double score4 = choice(state4, depth - 1, fours + 1);
 				expected_score += 0.9 * score2;
 				expected_score += 0.1 * score4;
+				// expected_score += 1.0 * score2;
 			}
 		}
 	}
@@ -372,18 +384,18 @@ double chance(uint64_t state, int depth) {
 }
 
 
-double choice(uint64_t state, int depth) {
+double choice(uint64_t state, int depth, int fours) {
 	if (depth <= 0) {
 		double score = Game2048::get_score(state);
 		return score;
 	}
-	double best_score = -1.0;
+	double best_score = -INF;
 	for (int i = 0; i < 4; i++) {
 		// cout << "depth: " << depth << ", probando movimiento " << i << endl;
 		auto move = Game2048::moves[i];
 		uint64_t new_state = move(state);
-		double score = chance(new_state, depth - 1);
-		if (score > best_score) {
+		double score = chance(new_state, depth - 1, fours);
+		if (score >= best_score) {
 			best_score = score;
 		}
 	}
@@ -392,14 +404,16 @@ double choice(uint64_t state, int depth) {
 
 uint64_t expectimax(uint64_t state, int depth) {
 	uint64_t best_state = 0;
-	double best_score = -1.0;
+	double best_score = -INF;
 	int best_move = -1;
 	for (int i = 0; i < 4; i++) {
 		auto move = Game2048::moves[i];
 		uint64_t new_state = move(state);
+		// printf("%lx\n", new_state);
 		double score = 0.0;
 		if (new_state != state) {
-			score = chance(new_state, depth);
+			score = chance(new_state, depth, 0);
+			// cout << "score" << i << ": " << score << endl;
 			if (score > best_score) {
 				best_score = score;
 				best_move = i;
@@ -408,6 +422,8 @@ uint64_t expectimax(uint64_t state, int depth) {
 		}
 		// cout << "expected score " << move_name[i] << ": " << score << endl;
 	}
+	cout << best_score << endl;
+	assert(best_state != 0);
 	cout << move_name[best_move] << endl;
 	return Game2048::place_random_tile(best_state);
 }
@@ -423,7 +439,32 @@ int main(int argc, char const *argv[]) {
 	int i;
 	int simulations = MCTS_SIMULATIONS;
 	for (int i = 0; Game2048::can_move(state); i++) {
-		state = expectimax(state, EXPECTIMAX_DEPTH);
+		int zeros = 0;
+		for (int j = 0; j < 16; j++) {
+			zeros += ((state >> (4*j)) & 0xF) == 0 ? 1 : 0;
+		}
+		// cout << zeros << endl;
+		// if (zeros <= 1) {
+		// 	cout << "search depth: " << EXPECTIMAX_DEPTH + 4 << endl;
+		// 	state = expectimax(state, EXPECTIMAX_DEPTH + 4);
+		// }
+		// else if (zeros <= 2) {
+		 if (zeros <= 2) {
+		 	cout << "search depth: " << EXPECTIMAX_DEPTH + 3 << endl;
+		 	state = expectimax(state, EXPECTIMAX_DEPTH + 3);
+		}
+		 else if (zeros <= 3) {
+			cout << "search depth: " << EXPECTIMAX_DEPTH + 2 << endl;
+			state = expectimax(state, EXPECTIMAX_DEPTH + 2);
+		}
+		else if (zeros <= 5) {
+			cout << "search depth: " << EXPECTIMAX_DEPTH + 1 << endl;
+			state = expectimax(state, EXPECTIMAX_DEPTH + 1);
+		}
+		else {
+			cout << "search depth: " << EXPECTIMAX_DEPTH << endl;
+			state = expectimax(state, EXPECTIMAX_DEPTH);
+		}
 		Game2048::print(state);
 	}
 	Game2048::print(state);
@@ -455,8 +496,7 @@ int main(int argc, char const *argv[]) {
 	//
 	// }
 	cout << "GAME OVER!" << endl;
-	cout << double(tf - ti) / i << " moves per second" << endl;
-	cout << simulations*(double(tf - ti) / i) << " simulations per second" << endl;
-	cout << "\033[0;31masdadsad" << endl;
+	// cout << double(tf - ti) / i << " moves per second" << endl;
+	// cout << simulations*(double(tf - ti) / i) << " simulations per second" << endl;
 	return 0;
 }
