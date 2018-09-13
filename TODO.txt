@@ -1,0 +1,6 @@
+- tunear Puzzle1048.get_score()
+- implementar MCTS
+- interfaz grafica con transiciones
+- implementar puntaje juego*
+- reset*
+- dejar boton hint en caso de que no juegue solo*
