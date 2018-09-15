@@ -39,7 +39,7 @@ class AI(object):
             return score
         best_score = -AI.INF
         for move in Puzzle2048.moves:
-            new_state = move(state)
+            new_state, score = move(state)
             if new_state != state:
                 score = AI.__chance(new_state, depth - 1)
                 if score >= best_score:
@@ -50,8 +50,9 @@ class AI(object):
         best_state = 0
         best_score = -AI.INF
         moves = []
+        game_score = 0
         for move in Puzzle2048.moves:
-            new_state = move(state)
+            new_state, sc = move(state)
             score = 0.0
             if new_state != state:
                 moves.append(move)
@@ -59,10 +60,11 @@ class AI(object):
                 if score > best_score:
                     best_score = score
                     best_state = new_state
+                    game_score = sc
         print(best_score)
         assert(best_state != 0)
         # print(move_name[best_move])
-        return Puzzle2048.place_random_tile(best_state)
+        return Puzzle2048.place_random_tile(best_state), game_score
 
 def main():
     Puzzle2048.precompute_tables()

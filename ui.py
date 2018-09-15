@@ -68,39 +68,43 @@ class Game2048(QWidget):
 		self.gameRunning=True
 
 	def up(self):
-		new_state = Puzzle2048.up(self.puzzle)
+		new_state, score = Puzzle2048.up(self.puzzle)
 		if new_state != self.puzzle:
 			self.puzzle = new_state
 			self.puzzle = Puzzle2048.place_random_tile(self.puzzle)
+			self.score += score
 			self.update()
 
 	def down(self):
-		new_state = Puzzle2048.down(self.puzzle)
+		new_state, score = Puzzle2048.down(self.puzzle)
 		if new_state != self.puzzle:
 			self.puzzle = new_state
 			self.puzzle = Puzzle2048.place_random_tile(self.puzzle)
+			self.score += score
 			self.update()
 
 	def left(self):
-		print('asdada')
 		Puzzle2048.print(self.puzzle)
-		new_state = Puzzle2048.left(self.puzzle)
-		print('asdada')
+		new_state, score = Puzzle2048.left(self.puzzle)
 		Puzzle2048.print(new_state)
 		if new_state != self.puzzle:
 			self.puzzle = new_state
 			self.puzzle = Puzzle2048.place_random_tile(self.puzzle)
+			self.score += score
 			self.update()
 
 	def right(self):
-		new_state = Puzzle2048.right(self.puzzle)
+		new_state, score = Puzzle2048.right(self.puzzle)
 		if new_state != self.puzzle:
 			self.puzzle = new_state
 			self.puzzle = Puzzle2048.place_random_tile(self.puzzle)
+			self.score += score
 			self.update()
 
 	def auto_play(self):
-		self.puzzle = AI.expectimax(self.puzzle)
+		self.puzzle, score = AI.expectimax(self.puzzle)
+		print('score: ', score)
+		self.score += score
 		self.update()
 
 	def keyPressEvent(self,e):

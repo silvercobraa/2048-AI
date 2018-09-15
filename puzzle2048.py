@@ -34,6 +34,7 @@ class Puzzle2048(object):
     # maximo hay 2^16 posibilidades por cada fila
     __move_right_lookup = [0 for i in range(1 << 16)]
     __move_left_lookup = [0 for i in range(1 << 16)]
+    __score_lookup = [0 for i in range(1 << 16)]
 
     # moves = [up, Puzzle2048.left, Puzzle2048.down, Puzzle2048.right]
 
@@ -73,6 +74,8 @@ class Puzzle2048(object):
         if destiny == 0:
             return False, 0, source
         elif source == destiny:
+            # por cada merge en la fila se suma la potencia de 2 producida al puntaje
+            Puzzle2048.__score_lookup[row] += 1 << (destiny + 1)
             return True, 0, destiny + 1
         return False, source, destiny
 
@@ -113,7 +116,7 @@ class Puzzle2048(object):
     # Public
     def get_score(state):
         if not Puzzle2048.can_move(state):
-            return 99999999
+            return -99999999
         h1 = [0, 4, 8, 12, 13, 9, 5, 1, 2, 6, 10, 14, 15, 11, 7, 3]
         h2 = [0, 1, 2, 3, 7, 6, 5, 4, 8, 9, 10, 11, 15, 14, 13, 12]
         ret1 = 0
@@ -158,40 +161,48 @@ class Puzzle2048(object):
         # desplazo 16 bits por la cantidad de filas, y aplico una mascara para descartar los bits que no importan
         # consulto la tabla con la fila obtenida
         # agrego el resultado en la su fila correspondiente en el nuevo estado
+        score = 0
         for i in range(4):
             row = (state >> (16*i)) & 0xFFFF
             r = Puzzle2048.__move_left_lookup[row]
+            score += Puzzle2048.__score_lookup[row]
             new_state |= r << (16*i)
-        return new_state
+        return new_state, score
 
     def right(state):
         # lo mismo que left, pero con la otra tabla
         new_state = 0
+        score = 0
         for i in range(4):
             row = (state >> (16*i)) & 0xFFFF
             r = Puzzle2048.__move_right_lookup[row]
+            score += Puzzle2048.__score_lookup[row]
             new_state |= r << (16*i)
-        return new_state
+        return new_state, score
 
     def up(state):
         # igual que left, pero hay que transponer antes y después
         tr = Puzzle2048.__transpose(state)
         new_state = 0
+        score = 0
         for i in range(4):
             row = (tr >> (16*i)) & 0xFFFF
             r = Puzzle2048.__move_left_lookup[row]
+            score += Puzzle2048.__score_lookup[row]
             new_state |= r << (16*i)
-        return Puzzle2048.__transpose(new_state)
+        return Puzzle2048.__transpose(new_state), score
 
     def down(state):
         # igual que right, pero hay que transponer antes y después
         tr = Puzzle2048.__transpose(state)
         new_state = 0
+        score = 0
         for i in range(4):
             row = (tr >> (16*i)) & 0xFFFF
             r = Puzzle2048.__move_right_lookup[row]
+            score += Puzzle2048.__score_lookup[row]
             new_state |= r << (16*i)
-        return Puzzle2048.__transpose(new_state)
+        return Puzzle2048.__transpose(new_state), score
 
     def can_move(state):
         return any((state != move(state) for move in Puzzle2048.moves))
@@ -206,19 +217,26 @@ def main():
     state = Puzzle2048.place_random_tile(state)
     Puzzle2048.print(state)
     print(Puzzle2048.get_matrix(state))
+    total_score = 0
     while True:
         move = input()
         if move == 'w':
-            state = Puzzle2048.up(state)
+            state, score = Puzzle2048.up(state)
+            total_score += score
         elif move == 'a':
-            state = Puzzle2048.left(state)
+            state, score = Puzzle2048.left(state)
+            total_score += score
         elif move == 's':
-            state = Puzzle2048.down(state)
+            state, score = Puzzle2048.down(state)
+            total_score += score
         elif move == 'd':
-            state = Puzzle2048.right(state)
+            state, score = Puzzle2048.right(state)
+            total_score += score
         Puzzle2048.print(state)
         state = Puzzle2048.place_random_tile(state)
         Puzzle2048.print(state)
+        print('total_score:', total_score)
 
 if __name__ == '__main__':
+    pass
     main()
