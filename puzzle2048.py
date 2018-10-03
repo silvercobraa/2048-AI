@@ -35,6 +35,8 @@ class Puzzle2048(object):
     __move_right_lookup = [0 for i in range(1 << 16)]
     __move_left_lookup = [0 for i in range(1 << 16)]
     __score_lookup = [0 for i in range(1 << 16)]
+    __h1 = [0, 4, 8, 12, 13, 9, 5, 1, 2, 6, 10, 14, 15, 11, 7, 3]
+    __h2 = [0, 1, 2, 3, 7, 6, 5, 4, 8, 9, 10, 11, 15, 14, 13, 12]
 
     # moves = [up, Puzzle2048.left, Puzzle2048.down, Puzzle2048.right]
 
@@ -61,6 +63,14 @@ class Puzzle2048(object):
         return ret
 
     def __transpose(state):
+        a1 = state & 0xF0F00F0FF0F00F0F
+        a2 = state & 0x0000F0F00000F0F0
+        a3 = state & 0x0F0F00000F0F0000
+        a = a1 | (a2 << 12) | (a3 >> 12)
+        b1 = a & 0xFF00FF0000FF00FF
+        b2 = a & 0x00FF00FF00000000
+        b3 = a & 0x00000000FF00FF00
+        return b1 | (b2 >> 24) | (b3 << 24)
         new_state = 0
         for i in range(4):
             for j in range(4):
@@ -117,21 +127,19 @@ class Puzzle2048(object):
     def get_score(state):
         if not Puzzle2048.can_move(state):
             return -99999999
-        h1 = [0, 4, 8, 12, 13, 9, 5, 1, 2, 6, 10, 14, 15, 11, 7, 3]
-        h2 = [0, 1, 2, 3, 7, 6, 5, 4, 8, 9, 10, 11, 15, 14, 13, 12]
         ret1 = 0
         ret2 = 0
         ret0 = 0
         for i in range(16):
             val = (state >> (4*i)) & 0xF
             if val == 0:
-                ret0 += 100
+                ret0 += 10000
             else:
                 # ret1 += (1 << val)*(1 << h1[i])
                 # ret2 += (1 << val)*(1 << h2[i])
-                ret1 += (1 << val) * 4**h1[i]
-                ret2 += (1 << val) * 4**h2[i]
-        return ret0 + ret1 + ret2
+                ret1 += (1 << val) * (1 << Puzzle2048.__h1[i])
+                ret2 += (1 << val) * (1 << Puzzle2048.__h2[i])
+        return max(ret1, ret2) + ret0
 
     def get_matrix(state):
         """Retorna la matriz que representa el estado."""
@@ -204,10 +212,15 @@ class Puzzle2048(object):
             new_state |= r << (16*i)
         return Puzzle2048.__transpose(new_state), score
 
-    def can_move(state):
-        return any((state != move(state) for move in Puzzle2048.moves))
-
     moves = [up, left, down, right]
+
+    def can_move(state):
+        return any((state != move(state)[0] for move in Puzzle2048.moves))
+
+    def random_move(state):
+        move = random.choice(Puzzle2048.moves)
+        return move(state)
+
 
 
 def main():

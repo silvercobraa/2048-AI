@@ -7,33 +7,57 @@ import random
 from puzzle2048 import Puzzle2048
 from ai import AI
 
+class Worker(QtCore.QThread):
+	data = QtCore.pyqtSignal(dict)
+
+	def __init__(self, parent=None):
+		super(Worker, self).__init__(parent)
+		self._stopped = True
+		self._mutex = QtCore.QMutex()
+		self.parent = parent
+
+	def stop(self):
+		self._mutex.lock()
+		self._stopped = True
+		self._mutex.unlock()
+
+	def run(self):
+		while True:
+			self.parent.auto_play()
+		# self.data.emit(data)
+
 class Game2048(QWidget):
 	def __init__(self,parent,width=340,gridSize=4):
 		QWidget.__init__(self,parent)
 		self.gameRunning=False
 		self.panelHeight=80
-		self.backgroundBrush=QtGui.QBrush(QtGui.QColor(0xbbada0))
+		self.backgroundBrush=QtGui.QBrush(QtGui.QColor(0x272822))
 		self.gridSize=gridSize
 		self.tileMargin=16
 		self.gridOffsetX=self.tileMargin
 		self.gridOffsetY=self.panelHeight+self.tileMargin
 		self.brushes={
-			0:QtGui.QBrush(QtGui.QColor(0xcdc1b4)),
-			1:QtGui.QBrush(QtGui.QColor(0x999999)),
-			2:QtGui.QBrush(QtGui.QColor(0xeee4da)),
-			4:QtGui.QBrush(QtGui.QColor(0xede0c8)),
-			8:QtGui.QBrush(QtGui.QColor(0xf2b179)),
-			16:QtGui.QBrush(QtGui.QColor(0xf59563)),
-			32:QtGui.QBrush(QtGui.QColor(0xf67c5f)),
-			64:QtGui.QBrush(QtGui.QColor(0xf65e3b)),
-			128:QtGui.QBrush(QtGui.QColor(0xedcf72)),
-			256:QtGui.QBrush(QtGui.QColor(0xedcc61)),
-			512:QtGui.QBrush(QtGui.QColor(0xedc850)),
-			1024:QtGui.QBrush(QtGui.QColor(0xedc53f)),
-			2048:QtGui.QBrush(QtGui.QColor(0xedc22e)),
+			0:QtGui.QBrush(QtGui.QColor(0x75715e)),
+			1:QtGui.QBrush(QtGui.QColor(0xf92672)),
+			2:QtGui.QBrush(QtGui.QColor(0xa6e22e)),
+			4:QtGui.QBrush(QtGui.QColor(0xf4bf75)),
+			8:QtGui.QBrush(QtGui.QColor(0x66d9ef)),
+			16:QtGui.QBrush(QtGui.QColor(0xae81ff)),
+			32:QtGui.QBrush(QtGui.QColor(0xa1efe4)),
+			64:QtGui.QBrush(QtGui.QColor(0xf92672)),
+			128:QtGui.QBrush(QtGui.QColor(0xa6e22e)),
+			256:QtGui.QBrush(QtGui.QColor(0xf4bf75)),
+			512:QtGui.QBrush(QtGui.QColor(0x66d9ef)),
+			1024:QtGui.QBrush(QtGui.QColor(0xae81ff)),
+			2048:QtGui.QBrush(QtGui.QColor(0xa1efe4)),
+			4096:QtGui.QBrush(QtGui.QColor(0xff0000)),
+			8192:QtGui.QBrush(QtGui.QColor(0x00ff00)),
+			16384:QtGui.QBrush(QtGui.QColor(0x0000ff)),
+			32768:QtGui.QBrush(QtGui.QColor(0xffff00)),
+			65536:QtGui.QBrush(QtGui.QColor(0x00ffff)),
 		}
-		self.lightPen=QtGui.QPen(QtGui.QColor(0xf9f6f2))
-		self.darkPen=QtGui.QPen(QtGui.QColor(0x776e65))
+		self.lightPen=QtGui.QPen(QtGui.QColor(0xf8f8f2))
+		self.darkPen=QtGui.QPen(QtGui.QColor(0xf8f8f2))
 		self.scoreRect=QtCore.QRect(10,10,80,self.panelHeight-20)
 		self.hiScoreRect=QtCore.QRect(100,10,80,self.panelHeight-20)
 		self.resetRect=QtCore.QRectF(190,10,80,self.panelHeight-20)
@@ -48,6 +72,21 @@ class Game2048(QWidget):
 		# 	move = pure_mcts(self.puzzle, 10)
 		# 	print(self.puzzle)
 		# 	self.update()
+		self._worker = Worker(self)
+		self._worker.started.connect(self.worker_started_callback)
+		self._worker.finished.connect(self.worker_finished_callback)
+		self._worker.data.connect(self.worker_data_callback)
+
+		self._worker.start()
+
+	def worker_started_callback(self):
+		pass
+
+	def worker_finished_callback(self):
+		pass
+
+	def worker_data_callback(self, data):
+		print(data['progress'])
 
 
 	def resizeEvent(self,e):
@@ -68,6 +107,7 @@ class Game2048(QWidget):
 		self.gameRunning=True
 
 	def up(self):
+		print('UP')
 		new_state, score = Puzzle2048.up(self.puzzle)
 		if new_state != self.puzzle:
 			self.puzzle = new_state
@@ -102,10 +142,17 @@ class Game2048(QWidget):
 			self.update()
 
 	def auto_play(self):
-		self.puzzle, score = AI.expectimax(self.puzzle)
-		print('score: ', score)
-		self.score += score
-		self.update()
+		if Puzzle2048.can_move(self.puzzle):
+			self.puzzle, score = AI.expectimax(self.puzzle)
+			print(hex(self.puzzle))
+			# self.puzzle, score = AI.pure_mcts(self.puzzle, 100)
+			print('score: ', self.score)
+			self.score += score
+			self.update()
+		else:
+
+			# Game over
+			pass
 
 	def keyPressEvent(self,e):
 		if not self.gameRunning:
