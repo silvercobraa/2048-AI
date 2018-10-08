@@ -1,7 +1,7 @@
 from puzzle2048 import Puzzle2048
 
 class AI(object):
-    EXPECTIMAX_DEPTH = 5
+    EXPECTIMAX_DEPTH = 4
     INF = 99999999
 
     """docstring for AI."""
@@ -23,14 +23,14 @@ class AI(object):
                     state2 = state
                     state4 = state
                     state2 ^= ((state >> offset) & 0xF) << offset
-                    # state4 ^= ((state >> offset) & 0xF) << offset
+                    state4 ^= ((state >> offset) & 0xF) << offset
                     state2 ^= 1 << offset
-                    # state4 ^= 2 << offset
+                    state4 ^= 2 << offset
                     score2 = AI.__choice(state2, depth - 1)
-                    # score4 = AI.__choice(state4, depth - 1)
-                    expected_score += 1 * score2
+                    score4 = AI.__choice(state4, depth - 1)
+                    # expected_score += 1 * score2
                     expected_score += 0.9 * score2
-                    # expected_score += 0.1 * score4
+                    expected_score += 0.1 * score4
         return 0 if total_weight == 0 else expected_score / total_weight
 
 
@@ -49,7 +49,9 @@ class AI(object):
 
     def expectimax(state, depth=EXPECTIMAX_DEPTH):
         best_state = 0
-        best_score = -AI.INF
+        # Esto tiene que ser menor que AI.INF, ya que si no la IA nunca
+        # se moverá hacia un estado GAME OVER, cuando sea el unico movimiento posible
+        best_score = -2*AI.INF
         moves = []
         game_score = 0
         for move in Puzzle2048.moves:
@@ -63,8 +65,8 @@ class AI(object):
                     best_state = new_state
                     game_score = sc
         print(best_score)
-        assert(best_state != 0)
-        # print(move_name[best_move])
+        if best_state == 0:
+            return state, game_score
         return Puzzle2048.place_random_tile(best_state), game_score
 
     def __simulate(state):
