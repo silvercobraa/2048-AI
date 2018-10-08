@@ -4,6 +4,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import QWidget, QApplication, QMessageBox
 import random
+import sys
 from puzzle2048 import Puzzle2048
 from ai import AI
 
@@ -12,7 +13,7 @@ class Worker(QtCore.QThread):
 
 	def __init__(self, parent=None):
 		super(Worker, self).__init__(parent)
-		self._stopped = True
+		self._stopped = False
 		self._mutex = QtCore.QMutex()
 		self.parent = parent
 
@@ -22,13 +23,12 @@ class Worker(QtCore.QThread):
 		self._mutex.unlock()
 
 	def run(self):
-		# qmb = QMessageBox.question(None, 'Test', 'Test 2', QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-		# qmb.show()
-
-		while Puzzle2048.can_move(self.parent.puzzle):
-			self.parent.auto_play()
+		while True:
+			if not self._stopped:
+				self.parent.mutex.lock()
+				self.parent.auto_play()
+				self.parent.mutex.unlock()
 		# self.data.emit(data)
-		print('GAME OVER!!!')
 
 class Game2048(QWidget):
 	def __init__(self,parent,width=340,gridSize=4):
@@ -58,7 +58,6 @@ class Game2048(QWidget):
 			8192:QtGui.QBrush(QtGui.QColor(0x333333)),
 			16384:QtGui.QBrush(QtGui.QColor(0x1a1a1a)),
 			32768:QtGui.QBrush(QtGui.QColor(0x000000)),
-			# 65536:QtGui.QBrush(QtGui.QColor(0x000000)),
 		}
 		self.lightPen=QtGui.QPen(QtGui.QColor(0xeff0f1))
 		self.darkPen=QtGui.QPen(QtGui.QColor(0xeff0f1))
@@ -67,26 +66,26 @@ class Game2048(QWidget):
 		self.resetRect=QtCore.QRectF(190,10,80,self.panelHeight-20)
 		self.scoreLabel=QtCore.QRectF(10,25,80,self.panelHeight-30)
 		self.hiScoreLabel=QtCore.QRectF(100,25,80,self.panelHeight-30)
-		self.hiScore=0
+		self.high_score=0
+		self.score=0
 		self.lastPoint=None
 		self.resize(QtCore.QSize(width,width+self.panelHeight))
 		self.reset_game()
 		self.iterations = 0
-		# while self.puzzle.can_move():
-		# 	move = pure_mcts(self.puzzle, 10)
-		# 	print(self.puzzle)
-		# 	self.update()
+
 		self._worker = Worker(self)
 		self._worker.started.connect(self.worker_started_callback)
 		self._worker.finished.connect(self.worker_finished_callback)
 		self._worker.data.connect(self.worker_data_callback)
-		self._worker.start()
+
+		self.mutex = QtCore.QMutex()
 
 
 	def worker_started_callback(self):
 		pass
 
 	def worker_finished_callback(self):
+		print('FINISHED')
 		pass
 
 	def worker_data_callback(self, data):
@@ -106,6 +105,7 @@ class Game2048(QWidget):
 		self.puzzle = 0
 		self.puzzle = Puzzle2048.place_random_tile(self.puzzle)
 		self.puzzle = Puzzle2048.place_random_tile(self.puzzle)
+		self.high_score = max(self.high_score, self.score)
 		self.score = 0
 		self.update()
 		self.gameRunning=True
@@ -118,6 +118,8 @@ class Game2048(QWidget):
 			self.puzzle = Puzzle2048.place_random_tile(self.puzzle)
 			self.score += score
 			self.update()
+			if not Puzzle2048.can_move(self.puzzle):
+				self.game_over()
 
 	def down(self):
 		new_state, score = Puzzle2048.down(self.puzzle)
@@ -126,6 +128,8 @@ class Game2048(QWidget):
 			self.puzzle = Puzzle2048.place_random_tile(self.puzzle)
 			self.score += score
 			self.update()
+			if not Puzzle2048.can_move(self.puzzle):
+				self.game_over()
 
 	def left(self):
 		Puzzle2048.print(self.puzzle)
@@ -136,6 +140,8 @@ class Game2048(QWidget):
 			self.puzzle = Puzzle2048.place_random_tile(self.puzzle)
 			self.score += score
 			self.update()
+			if not Puzzle2048.can_move(self.puzzle):
+				self.game_over()
 
 	def right(self):
 		new_state, score = Puzzle2048.right(self.puzzle)
@@ -144,6 +150,8 @@ class Game2048(QWidget):
 			self.puzzle = Puzzle2048.place_random_tile(self.puzzle)
 			self.score += score
 			self.update()
+			if not Puzzle2048.can_move(self.puzzle):
+				self.game_over()
 
 	def auto_play(self):
 		if Puzzle2048.can_move(self.puzzle):
@@ -154,14 +162,24 @@ class Game2048(QWidget):
 			self.score += score
 			self.update()
 		else:
+			self.game_over()
 
-			# Game over
-			pass
+	def game_over(self):
+		self._worker.stop()
+		qmb = QMessageBox.question(self, 'RIP', 'GAME OVER! Quiere seguir jugando?', QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+		print("===============================")
+		if qmb == QMessageBox.Yes:
+			print('asdasd')
+			self.reset_game()
+		else:
+			sys.exit(0)
+		print("===============================")
 
 	def keyPressEvent(self,e):
 		if not self.gameRunning:
 			return
 		if e.key()==QtCore.Qt.Key_Escape:
+			self._worker.stop()
 			self.reset_game()
 		elif e.key()==QtCore.Qt.Key_Up:
 			self.up()
@@ -172,7 +190,7 @@ class Game2048(QWidget):
 		elif e.key()==QtCore.Qt.Key_Right:
 			self.right()
 		elif e.key()==QtCore.Qt.Key_Space:
-			self.auto_play()
+			self._worker.start()
 		print(self.puzzle)
 
 	def paintEvent(self,event):
@@ -194,7 +212,7 @@ class Game2048(QWidget):
 		painter.setFont(QtGui.QFont('Arial',15))
 		painter.setPen(self.lightPen)
 		painter.drawText(self.scoreLabel,str(self.score),QtGui.QTextOption(QtCore.Qt.AlignHCenter|QtCore.Qt.AlignVCenter))
-		painter.drawText(self.hiScoreLabel,str(self.hiScore),QtGui.QTextOption(QtCore.Qt.AlignHCenter|QtCore.Qt.AlignVCenter))
+		painter.drawText(self.hiScoreLabel,str(self.high_score),QtGui.QTextOption(QtCore.Qt.AlignHCenter|QtCore.Qt.AlignVCenter))
 		painter.setFont(self.font)
 		matrix = Puzzle2048.get_matrix(self.puzzle)
 		print(matrix)
