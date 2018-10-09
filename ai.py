@@ -1,10 +1,11 @@
 from puzzle2048 import Puzzle2048
+from mcts import GameState, UCT
 
 class AI(object):
-    EXPECTIMAX_DEPTH = 4
+    EXPECTIMAX_DEPTH = 3
+    MCTS_ITERATIONS = 100
     INF = 99999999
 
-    """docstring for AI."""
     def __init__(self, arg):
         super(AI, self).__init__()
         self.arg = arg
@@ -64,7 +65,7 @@ class AI(object):
                     best_score = score
                     best_state = new_state
                     game_score = sc
-        print(best_score)
+        # print(best_score)
         if best_state == 0:
             return state, game_score
         return Puzzle2048.place_random_tile(best_state), game_score
@@ -98,7 +99,15 @@ class AI(object):
                     ans = (new_state, sc)
         return ans
 
-
+    def mcts(state):
+        gs = GameState(state)
+        move = UCT(rootstate=gs, itermax=AI.MCTS_ITERATIONS, verbose=False)
+        state, score = move(state)
+        try:
+            state = Puzzle2048.place_random_tile(state)
+        except IndexError as ie:
+            pass
+        return state, score
 
 def main():
     Puzzle2048.precompute_tables()
