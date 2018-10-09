@@ -4,11 +4,12 @@ from mcts import GameState, UCT
 class AI(object):
     EXPECTIMAX_DEPTH = 3
     MCTS_ITERATIONS = 100
+    PURE_MCTS_SIMULATIONS = 100
     INF = 99999999
 
-    def __init__(self, arg):
+    def __init__(self, algorithm):
         super(AI, self).__init__()
-        self.arg = arg
+        self.algorithm = algorithm
 
     def __chance(state, depth):
         if depth == 0:
@@ -48,7 +49,7 @@ class AI(object):
                     best_score = score
         return best_score
 
-    def expectimax(state, depth=EXPECTIMAX_DEPTH):
+    def expectimax(state):
         best_state = 0
         # Esto tiene que ser menor que AI.INF, ya que si no la IA nunca
         # se moverá hacia un estado GAME OVER, cuando sea el unico movimiento posible
@@ -60,7 +61,7 @@ class AI(object):
             score = 0.0
             if new_state != state:
                 moves.append(move)
-                score = AI.__chance(new_state, depth)
+                score = AI.__chance(new_state, AI.EXPECTIMAX_DEPTH)
                 if score > best_score:
                     best_score = score
                     best_state = new_state
@@ -79,21 +80,21 @@ class AI(object):
                 score += sc
         return state, score
 
-    def __simulations(state, simulations):
+    def __simulations(state):
         branch_score = 0
-        for i in range(simulations):
+        for i in range(AI.PURE_MCTS_SIMULATIONS):
             sim_state, sim_score = AI.__simulate(state)
             branch_score += sim_score
         return branch_score
 
-    def pure_mcts(state, simulations):
+    def pure_mcts(state):
         best_score = -AI.INF
         ans = (state, 0)
         for move in Puzzle2048.moves:
             new_state, sc = move(state)
             if new_state != state:
                 new_state = Puzzle2048.place_random_tile(new_state)
-                branch_score = AI.__simulations(new_state, simulations)
+                branch_score = AI.__simulations(new_state)
                 if branch_score > best_score:
                     best_score = branch_score
                     ans = (new_state, sc)
@@ -108,6 +109,17 @@ class AI(object):
         except IndexError as ie:
             pass
         return state, score
+
+    def play(self, state):
+        if self.algorithm == 'expectimax':
+            return AI.expectimax(state)
+        elif self.algorithm == 'mcts':
+            return AI.mcts(state)
+        elif self.algorithm == 'pure_mcts':
+            return AI.pure_mcts(state)
+        # si el algoritmo es desconocido, retornar el mismo estado y nada de puntaje
+        else:
+            return state, 0
 
 def main():
     Puzzle2048.precompute_tables()
