@@ -4,7 +4,7 @@ from ai import AI
 from ui import Game2048
 
 Puzzle2048.precompute_tables()
-AI.EXPECTIMAX_DEPTH = 4
+AI.EXPECTIMAX_DEPTH = 2
 AI.MCTS_ITERATIONS = 100
 AI.PURE_MCTS_SIMULATIONS = 100
 

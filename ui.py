@@ -13,13 +13,20 @@ class Worker(QtCore.QThread):
 
 	def __init__(self, parent=None):
 		super(Worker, self).__init__(parent)
-		self._stopped = False
+		self._stopped = True
 		self._mutex = QtCore.QMutex()
 		self.parent = parent
 
 	def stop(self):
+		print('STOP')
 		self._mutex.lock()
 		self._stopped = True
+		self._mutex.unlock()
+
+	def restart(self):
+		print('START')
+		self._mutex.lock()
+		self._stopped = False
 		self._mutex.unlock()
 
 	def run(self):
@@ -33,7 +40,6 @@ class Worker(QtCore.QThread):
 class Game2048(QWidget):
 	def __init__(self,parent,width=340, ai=AI('expectimax')):
 		QWidget.__init__(self,parent)
-		self.gameRunning=False
 		self.panelHeight=80
 		self.backgroundBrush=QtGui.QBrush(QtGui.QColor(0x272822))
 		self.tileMargin=16
@@ -78,6 +84,7 @@ class Game2048(QWidget):
 		self.reset_game()
 
 		self._worker = Worker(self)
+		self._worker.start()
 		# self._worker.started.connect(self.worker_started_callback)
 		# self._worker.finished.connect(self.worker_finished_callback)
 		# self._worker.data.connect(self.worker_data_callback)
@@ -111,8 +118,6 @@ class Game2048(QWidget):
 		self.high_score = max(self.high_score, self.score)
 		self.score = 0
 		self.update()
-		self.gameRunning=True
-		self.update()
 
 	def play(self, move):
 		new_state, score = move(self.puzzle)
@@ -125,6 +130,7 @@ class Game2048(QWidget):
 				self.game_over()
 
 	def auto_play(self):
+		# self._worker.restart()
 		if Puzzle2048.can_move(self.puzzle):
 			print(hex(self.puzzle))
 			self.puzzle, score = self.ai.play(self.puzzle)
@@ -145,8 +151,6 @@ class Game2048(QWidget):
 			sys.exit(0)
 
 	def keyPressEvent(self,e):
-		if not self.gameRunning:
-			return
 		if e.key()==QtCore.Qt.Key_Escape:
 			self._worker.stop()
 			self.reset_game()
@@ -159,7 +163,7 @@ class Game2048(QWidget):
 		elif e.key()==QtCore.Qt.Key_Right:
 			self.play(Puzzle2048.right)
 		elif e.key()==QtCore.Qt.Key_Space:
-			self._worker.start()
+			self._worker.restart()
 		print(self.puzzle)
 
 	def paintEvent(self,event):
