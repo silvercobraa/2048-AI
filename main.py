@@ -11,6 +11,7 @@ AI.PURE_MCTS_SIMULATIONS = 100
 ai = AI('expectimax')
 # ai = AI('pure_mcts')
 # ai = AI('mcts')
+# ai = AI('random')
 
 app = QApplication([])
 window = Game2048(None,340, ai)

@@ -219,7 +219,12 @@ class Puzzle2048(object):
 
     def random_move(state):
         move = random.choice(Puzzle2048.moves)
-        return move(state)
+        state, score = move(state)
+        try:
+            state = Puzzle2048.place_random_tile(state)
+        except IndexError as ie:
+            pass
+        return state, score
 
 
 

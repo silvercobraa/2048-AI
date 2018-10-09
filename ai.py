@@ -110,6 +110,9 @@ class AI(object):
             pass
         return state, score
 
+    def random(state):
+        return Puzzle2048.random_move(state)
+
     def play(self, state):
         if self.algorithm == 'expectimax':
             return AI.expectimax(state)
@@ -117,6 +120,8 @@ class AI(object):
             return AI.mcts(state)
         elif self.algorithm == 'pure_mcts':
             return AI.pure_mcts(state)
+        elif self.algorithm == 'random':
+            return AI.random(state)
         # si el algoritmo es desconocido, retornar el mismo estado y nada de puntaje
         else:
             return state, 0
