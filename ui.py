@@ -23,10 +23,13 @@ class Worker(QtCore.QThread):
 		self._stopped = True
 		self._mutex.unlock()
 
-	def restart(self):
-		print('START')
+	def toggle(self):
 		self._mutex.lock()
-		self._stopped = False
+		self._stopped = not self._stopped
+		if self._stopped:
+			print('STOP')
+		else:
+			print('START')
 		self._mutex.unlock()
 
 	def run(self):
@@ -38,13 +41,14 @@ class Worker(QtCore.QThread):
 		# self.data.emit(data)
 
 class Game2048(QWidget):
-	def __init__(self,parent,width=340, ai=AI('expectimax')):
+	def __init__(self,parent, width=800, height=800, ai=AI('expectimax')):
 		QWidget.__init__(self,parent)
 		self.panelHeight=80
 		self.backgroundBrush=QtGui.QBrush(QtGui.QColor(0x272822))
 		self.tileMargin=16
 		self.gridOffsetX=self.tileMargin
 		self.gridOffsetY=self.panelHeight+self.tileMargin
+		self.resize(width, height)
 		# powers = [2**i for i in range(16)]
 		# powers.append(0)
 		# print(powers)
@@ -80,27 +84,18 @@ class Game2048(QWidget):
 		self.high_score=0
 		self.score=0
 		self.ai = ai
-		self.resize(QtCore.QSize(width,width+self.panelHeight))
+		# self.resize(QtCore.QSize(self.width, self.width + self.panelHeight))
 		self.reset_game()
+		qmb = QMessageBox.question(self, 'Instrucciones', 'Utilice las teclas direccionales para mover las baldosas.', QMessageBox.Ok)
+
 
 		self._worker = Worker(self)
 		self._worker.start()
-		# self._worker.started.connect(self.worker_started_callback)
-		# self._worker.finished.connect(self.worker_finished_callback)
-		# self._worker.data.connect(self.worker_data_callback)
 		self.mutex = QtCore.QMutex()
-
-
-	# def worker_started_callback(self):
-	# 	pass
-	#
-	# def worker_finished_callback(self):
-	# 	print('FINISHED')
-	# 	pass
-	#
-	# def worker_data_callback(self, data):
-	# 	print(data['progress'])
-
+		# self.timer = QtCore.QTimer()
+		# self.timer.setSingleShot(True)
+		# self.timer.timeout.connect(self.hola)
+		# self.timer.start(1000)
 
 	def resizeEvent(self,e):
 		width=min(e.size().width(),e.size().height()-self.panelHeight)
@@ -130,7 +125,6 @@ class Game2048(QWidget):
 				self.game_over()
 
 	def auto_play(self):
-		# self._worker.restart()
 		if Puzzle2048.can_move(self.puzzle):
 			print(hex(self.puzzle))
 			self.puzzle, score = self.ai.play(self.puzzle)
@@ -163,7 +157,7 @@ class Game2048(QWidget):
 		elif e.key()==QtCore.Qt.Key_Right:
 			self.play(Puzzle2048.right)
 		elif e.key()==QtCore.Qt.Key_Space:
-			self._worker.restart()
+			self._worker.toggle()
 		print(self.puzzle)
 
 	def paintEvent(self,event):
