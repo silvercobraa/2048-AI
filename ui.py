@@ -49,6 +49,10 @@ class Game2048(QWidget):
 		self.gridOffsetX=self.tileMargin
 		self.gridOffsetY=self.panelHeight+self.tileMargin
 		self.resize(width, height)
+		self.icon = QIcon()
+		self.icon.addPixmap(QPixmap('ai.jpg'), QIcon.Normal, QIcon.Off)
+		self.setIconSize(QSize(10, 10))
+		self.setWindowIcon(self.icon)
 		# powers = [2**i for i in range(16)]
 		# powers.append(0)
 		# print(powers)
