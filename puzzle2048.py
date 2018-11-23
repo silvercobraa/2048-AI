@@ -37,6 +37,7 @@ class Puzzle2048(object):
     __score_lookup = [0 for i in range(1 << 16)]
     __h1 = [0, 4, 8, 12, 13, 9, 5, 1, 2, 6, 10, 14, 15, 11, 7, 3]
     __h2 = [0, 1, 2, 3, 7, 6, 5, 4, 8, 9, 10, 11, 15, 14, 13, 12]
+    __h3 = [12, 11, 10, 9, 13, 12, 11, 10, 14, 13, 12, 11, 15, 14, 13, 12]
 
     # moves = [up, Puzzle2048.left, Puzzle2048.down, Puzzle2048.right]
 
@@ -129,6 +130,7 @@ class Puzzle2048(object):
             return -99999999
         ret1 = 0
         ret2 = 0
+        ret3 = 0
         ret0 = 0
         for i in range(16):
             val = (state >> (4*i)) & 0xF
@@ -137,9 +139,11 @@ class Puzzle2048(object):
             else:
                 # ret1 += (1 << val)*(1 << h1[i])
                 # ret2 += (1 << val)*(1 << h2[i])
-                ret1 += (1 << val) * (1 << Puzzle2048.__h1[i])
-                ret2 += (1 << val) * (1 << Puzzle2048.__h2[i])
-        return max(ret1, ret2) + ret0
+                #ret1 += (1 << val) * (1 << Puzzle2048.__h1[i])
+                #ret2 += (1 << val) * (1 << Puzzle2048.__h2[i])
+                ret3 += (1 << val) * (1 << Puzzle2048.__h3[i])
+        #return max(ret1, ret2) + ret0
+        return ret3 + ret0
 
     def get_matrix(state):
         """Retorna la matriz que representa el estado."""

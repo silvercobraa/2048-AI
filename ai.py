@@ -2,7 +2,7 @@ from puzzle2048 import Puzzle2048
 from mcts import GameState, UCT
 
 class AI(object):
-    EXPECTIMAX_DEPTH = 3
+    EXPECTIMAX_DEPTH = 4
     MCTS_ITERATIONS = 100
     PURE_MCTS_SIMULATIONS = 100
     INF = 99999999
@@ -30,7 +30,7 @@ class AI(object):
                     state4 ^= 2 << offset
                     score2 = AI.__choice(state2, depth - 1)
                     score4 = AI.__choice(state4, depth - 1)
-                    # expected_score += 1 * score2
+                    #expected_score += 1 * score2
                     expected_score += 0.9 * score2
                     expected_score += 0.1 * score4
         return 0 if total_weight == 0 else expected_score / total_weight
